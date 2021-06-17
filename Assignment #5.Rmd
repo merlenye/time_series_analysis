@@ -1,0 +1,148 @@
+---
+title: 'Assignment #5'
+author: "Merle Nye"
+date: "3/30/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message = FALSE)
+```
+
+```{r libraries}
+library(forecast)
+library(tidyverse)
+library(tseries)
+library(Kendall)
+library(readr)
+```
+
+```{r load_data}
+nat_data <-NaturalGasConsumption <- read_csv("NaturalGasConsumption.csv")
+View(NaturalGasConsumption)
+nat_data <- nat_data%>%
+  select(-c(Month))
+nat_data<- nat_data %>% map_df(rev)
+nat_ts <- ts(nat_data, frequency = 12)
+```
+
+Question 1: 
+
+```{r acf_pacf}
+par(mfrow=c(1,3))
+plot_acf <- acf(nat_ts, plot = FALSE) 
+plot_pacf <- pacf(nat_ts, plot = FALSE)
+plot(plot_acf, main = "Autocorrelation")
+plot(plot_pacf, main = "Partial Autocorrelation")
+```
+
+Question 2:
+
+```{r decomp}
+par(mfrow=c(1,3))
+decomp_nat <- decompose(nat_ts)
+plot(decomp_nat)
+adj_nat<-seasadj(decomp_nat)
+plot_deseason_acf <- acf(adj_nat, plot = FALSE)
+plot_deseason_pacf <- pacf(adj_nat, plot = FALSE)
+plot(plot_deseason_acf, main = "Autocorrelation")
+plot(plot_deseason_pacf, main = "Partial Autocorrelation")
+```
+
+
+Question 3: 
+
+While both ACF plots show autocorrelation, the first is much more variable, and declines less gradually. This is reflective of the seasonality in the data. The adjusted series shows a slow decline in the ACf charactersitic of a deseasoned series. 
+
+The original series containts far more PACF lags that have significant influence and shows an order of two for the series. The deseasoned data has many fewe signifcant lags and shows an order of 1. The trend of lag significance in the second PACF is less varied. 
+
+Question 4:
+```{r man_kendall}
+print(summary(MannKendall(adj_nat)))
+print(adf.test(adj_nat, alternative = "stationary"))
+```
+The Man Kendall test here tell us that there is a monotonic trend. We accept the alternative hypothesis. The trend is slightly positive as the tau value is 0.8.
+
+
+The ADF test yields a p-value of 0.01, so we accept the alternative hypothesis. This means that there is no unit root that would cause an unperdictable systemic trend in the time series. This is consistent with what we would expect when viewing deseasoned trends.
+
+
+Question 5: 
+
+The parameters for the Arima model are as follows:
+
+p = 1 -> The model is autoregressive and as we can see in the PCF, the order is 1
+d = 1 -> The test results showed clear stationarity as we removed the trend in earlier steps
+q = 0 -> this is not a moving average series, so there are no MA terms
+
+Question 6:
+
+```{r arima_fit}
+new_fit = Arima(adj_nat, order= c(1,1,0), include.drift = TRUE)
+print(new_fit)
+```
+Question 7:
+
+```{r question_7}
+par(mfrow=c(1,3))
+ts.plot(new_fit$residuals)
+new_res_acf <- Acf(new_fit$residuals, lag.max = 40, plot = FALSE)
+new_res_pacf <- Pacf(new_fit$residuals, lag.max = 40, plot = FALSE)
+plot(new_res_acf, main =" Autocorrelation of Residuals")
+plot(new_res_pacf, main = "Partial Autocorrelation of Residuals")
+     
+
+```
+
+It is unlikely this series is white noise, because although there is no discernable pattern in the trend, ACF or PACF, we see many significant lags in the ACF. If the series were white noise, we would expect one or, at most, two of the lags to be significant, but not four.
+
+Question 8:
+
+The parameters from the original series are as follows:
+
+p=1 -> The series has a strong autregressive component and in the PACF plot we clearly see an order of two
+d=0 -> The trend is not stationary and has not been differenced
+q=0 -> There is no moving average component in the series. We see no gradual decline in the PACF.
+
+Seasonal component 
+
+P=1 -> We see consistent spikes on every 12th ACF lag
+d=0 -> Series hasn't been differened
+q=0 -> there is no discernable pattern in PACF lags
+
+```{r orig_arima_fit}
+old_fit = Arima(nat_ts, order= c(1,0,0), seasonal=c(1,0,0),include.drift = FALSE)
+print(old_fit)
+```
+
+```{r orig_fit_plots}
+par(mfrow=c(1,3))
+ts.plot(old_fit$residuals)
+old_res_acf <- Acf(old_fit$residuals, lag.max = 40, plot = FALSE)
+old_res_pacf<- Pacf(old_fit$residuals, lag.max = 40, plot = FALSE)
+plot(old_res_acf, main = "Autocorrelation of Residuals")
+plot(old_res_pacf, main = "Partial Autocorrelation of Residuals")
+```
+
+Question 9:
+
+The model for the differenced time series is more accurate because it shows an AIC of 4008, while the model for the orginal, seasonal time series has an AIC of 4147. This means the deseasoned data will be a better predictor for the natural gas consumption forecasting. This makes sense, as the ACF in the deseasoned time series looks more like white noise than its counterpart in the time series with seasons. 
+
+Question 10:
+
+```{r auto_arima}
+auto_new_fit= auto.arima(adj_nat)
+print(auto_new_fit)
+```
+
+The auto ARIMA function selected an order 1 for the moving average component, which I had judged to be non-existent. The AIC was slightly improved from my 4008 using the estimated parameters to a 4000 using the automatically selected arima model. 
+
+Question 11:
+
+```{r auto_arima_old}
+auto_old_fit= auto.arima(nat_ts)
+print(auto_old_fit)
+
+```
+
+Interestingly enough, this turned out to be the most accurate model overall. These parameters differed greatly from what I'd expected. I'd estimated almost every parameter wrong, aside from the 0 for d and 1 for p. I should've been paid more attention to the spike in significance on the 12th lag in the ACF, but figured that because all the lags were significant this might not necessarily mean a moving average component was present. The seasonal difference I also should've picked up on, but confused it with a first difference, and better understand my mistake now. 

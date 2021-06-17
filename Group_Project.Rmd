@@ -1,0 +1,140 @@
+---
+title: "Group_EV_Project"
+author: "Merle Nye"
+date: "4/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(forecast)
+library(tseries)
+library(dlm)
+library(readr)
+library(tidyverse)
+library(Kendall)
+```
+
+```{r data_load}
+data <- NEV_Sales
+TS_EV_2 <- ts(data$France, frequency = 12)
+EV_wout_seas <- deseas_EV
+nobs2 <- nrow(NEV_Sales)
+EV_TS_aux <- TS_EV_2[0:(nobs2-10)]
+EV_TS_aux <- ts(EV_TS_aux, frequency = 12)
+EV_aux_deseas <- EV_wout_seas[0:(nobs2-10)]
+EV_aux_deseas <- ts(EV_aux_deseas, frequency = 12)
+```
+
+```{r acf_pacf}
+par(oma=c(0,0,2,0))
+EV_Acf <- Acf(TS_EV_2, plot = FALSE)
+jpeg(file="EV_ACF.jpeg")
+plot(EV_Acf, main ="ACF")
+dev.off()
+jpeg(file="EV_PACF.jpeg")
+plot(Pacf(TS_EV_2), main = "PACF")
+dev.off()
+Acf(TS_EV_2)
+Pacf(TS_EV_2)
+print(auto.arima(TS_EV_2))
+plot(Acf(TS_EV_2))+
+  title(outer = TRUE, main = "ACF")
+
+```
+
+```{r adf}
+adf <- adf.test(TS_EV_2, alternative = "stationary")
+adf
+Ma
+```
+
+
+
+```{r basic_structural_model}
+fit_ss=StructTS(EV_TS_aux,type="BSM", ,fixed=c(.1,1,4,NA))
+for_ss=forecast(fit_ss,h=240)
+plot(for_ss)
+accuracy(for_ss$mean,TS_EV_2[(nobs2-10):nobs2])
+for_ss
+
+last_year <- for_ss$upper[229:240]
+last_year <- Reduce('+', last_year)
+plot(for_ss$residuals, main = "BSM Residuals")
+plot(Acf(for_ss$residuals), main = "BSM Residuals ACF")
+plot(Pacf(for_ss$residuals), main = "BSM Residuals PACF")
+jpeg(file="EV_BSM.jpeg")
+plot(for_ss, main = "France EV Forecast", ylab = "EVs Sold", xlab = "Years")
+dev.off()
+
+jpeg(file="EV_Resid.jpeg")
+plot(for_ss$residuals, main = "BSM Residuals", ylab = "Residuals", xlab = "Years")
+dev.off()
+
+jpeg(file="EV_Resid_ACF.jpeg")
+plot(Acf(for_ss$residuals), main = "BSM Residuals ACF")
+dev.off()
+
+jpeg(file="EV_Resid_PACF.jpeg")
+plot(Pacf(for_ss$residuals), main = "BSM Residuals PACF")
+dev.off()
+
+```
+
+
+
+```{r snaive}
+fit_nai=naive(EV_TS_aux,h=240)
+print(fit_nai)
+plot(fit_nai)
+accuracy(fit_nai$mean,TS_EV_2[(nobs2-10):nobs2])
+```
+```{r es}
+fit_sesmodel=ses(EV_TS_aux,h=240,alpha=0.2,holdout=FALSE,silent=FALSE)
+summary(fit_sesmodel)
+autoplot(fit_sesmodel)
+```
+
+
+```{r auto_arima}
+fit_seas=auto.arima(EV_TS_aux,max.D=0,max.P=0,max.Q=0)
+print(fit_seas)
+seas_for=forecast(fit_seas,h=240)
+plot(seas_for)
+accuracy(seas_for$mean,TS_EV_2[(nobs2-10):nobs2])
+
+plot(seas_for$residuals)
+Acf(seas_for$residuals)
+Pacf(seas_for$residuals)
+
+```
+
+```{r}
+fit_deseas=auto.arima(EV_aux_deseas)
+print(fit_deseas)
+deseas_for=forecast(fit_deseas,h=240)
+plot(deseas_for)
+accuracy(deseas_for$mean,EV_wout_seas[(nobs2-10):nobs2])
+
+plot(deseas_for$residuals)
+Acf(deseas_for$residuals)
+Pacf(deseas_for$residuals)
+```
+
+
+```{r decomp}
+jpeg(file="EV_Decomp.jpeg")
+plot(decomp_EV)
+dev.off()
+```
+
+```{r residuals_plot}
+
+plot(for_ss$residuals)
+```
+
+
+

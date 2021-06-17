@@ -1,0 +1,119 @@
+---
+title: 'Assignment #4'
+author: "Merle Nye"
+date: "2/29/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(forecast)
+library(tseries)
+```
+Question 1: 
+
+(a) For the ACF of an AR(2) plot, we should expect to see a gradual decrease in the significance of the lags. We should expect two of these lags (excluding lag 0) to be above the line of significance.
+
+  In the PACF, we would expect to see a sudden cut-off point, likely in the first lag. We would expect to see only one lag with a significant PACF in this plot. 
+
+
+
+(b) For the ACF of a MA(1) model, We would expect to see the significance cut off at lag 1. If the autocorrelation at 1 is positive, the plot would then likely be an AR model. 
+
+  For the PACF of a MA(1) model, we should expect to see a slow decay in significance partial autocorrelation, negative of positive. We should find that lag 1 is above the significance line, but the remaining lags are not. 
+
+Question 2:
+
+```{r question_2}
+par(mfrow=c(1,3))
+
+ar.sim=arima.sim(model=list(ar=c(0.6)),n=100)
+ts.plot(ar.sim)
+ar.acf=Acf(ar.sim,plot=T)
+ar.pacf=Acf(ar.sim,type="partial",plot=T)
+ 
+ma.sim=arima.sim(model=list(ma=c(0.9)),n=100)
+ts.plot(ma.sim)
+ar.acf=Acf(ma.sim,plot=T)
+ar.pacf=Acf(ma.sim,type="partial",plot=T)
+
+ts.sim <- arima.sim(list(ar = 0.6, ma =.9), n = 100)
+ts.plot(ts.sim)
+ar.acf=Acf(ts.sim,plot=T)
+ar.pacf=Acf(ts.sim,type="partial",plot=T)
+```
+
+n = 100 
+
+ARMA(1,0) - We can see that this is an AR model because of the gradual decline in the ACF chart and the clear cutoff on the acf. The ACF value, while slightly smaller, nearly matches the theoretical input of the AR coefficient. The order of this model is 2.
+
+ARMA(0,1) - The ACF in this model shows a steep cutoff after the first lag, so we can discount a moving average model. Though the PACF alternates between positive and negative, the significance of the lags exhibits the slow decline we would expect to see with a moving average model. The order of this MA is 2. 
+
+ARMA (1,1) - Both the ACF and PACF seem to exhibit both increases and decreases in signifiance with no gradual decline. Because the lack of clear, gradual decline, this is an ARMA model with an order of 3
+
+```{r question_2_1000s}
+par(mfrow=c(1,3))
+
+ar.sim=arima.sim(model=list(ar=c(0.6)),n=1000)
+ts.plot(ar.sim)
+ar.acf=Acf(ar.sim,plot=T)
+ar.pacf=Acf(ar.sim,type="partial",plot=T)
+ 
+ma.sim=arima.sim(model=list(ma=c(0.9)),n=1000)
+ts.plot(ma.sim)
+ar.acf=Acf(ma.sim,plot=T)
+ar.pacf=Acf(ma.sim,type="partial",plot=T)
+
+ts.sim <- arima.sim(list(ar = 0.6, ma =.9), n = 1000)
+ts.plot(ts.sim)
+ar.acf=Acf(ts.sim,plot=T)
+ar.pacf=Acf(ts.sim,type="partial",plot=T)
+```
+
+n = 1000
+
+ARMA(1,0) - This model again appears to be a moving average model as we can see a very clear gradual decline the ACF plot. The cutoff is immediate in the PACF and therefor the model is not MA. With n = 1000 the ACF coeffecient is much closer to that specified for simulation. The order for this AR is 3.
+
+ARMA(0,1) - This model also appears to be ARMA as it lacks the distinctive gradual atrophy on either graph to be an MA or AR model. 
+
+ARMA(1,1) - This model is also an AR given the gradual decrease observed in the ACF. The PACF values seems rather random in comparison, but all generally very significant. The order of the AR component here is 3.
+
+
+Question 3:
+
+(a)
+p = 1
+P = 1
+d = 0
+D = 0
+q = 1
+Q = 0
+
+The order is clearly 1 because we see the first coeffecient multiplied by y at the first lag. 
+
+The D is 0 because there are no constants in the equation and we can infer that it hasn't been differenced in anyway. Similarly, we can see that there is some differencing but we do not know by how much. BEcause the series is not completely differenced and has no constants, we can conclude that s is 0.
+
+(b)
+
+The parameter for the first lag is 0.7, meaning that the effect of the past value at lag 1 is very storng.
+
+The paraemter for seasonality is -0.25 meaning that at the next lag, we can expect seasonality to have a negative effect on the value. 
+
+Finally, the error coefficient of the equation is -0.1
+
+
+Question 4.
+
+```{r ARIMA_X}
+par(mfrow = c(1, 3))
+four.sim= arima.sim(list(order = c(1, 0, 1), ar = 0.8, ma = 0.5), n = 1000)
+ts.plot(four.sim)
+ar.acf=Acf(four.sim,plot=T)
+ar.pacf=Acf(four.sim,type="partial",plot=T)
+
+```
+
+The plots do appear to be representing the simulated model. The ACF shows a distinct gradual decline and the coeffecient closely matches the paremeter set forward in the simulation. The PACF plot also closely matches the 0.5 parameter set out in the MA parameter. The summary chart on the right seems display cycles of 12 month increments and reinforce the plot's representation of the model.The behavior demonstrated seems to be repeating every 12 months, generally. 

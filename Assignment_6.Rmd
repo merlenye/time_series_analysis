@@ -1,0 +1,185 @@
+---
+title: "Assignment 6"
+author: "Merle Nye"
+date: "4/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning=FALSE, message = FALSE)
+```
+
+```{r libraries}
+library(forecast)
+library(tseries)
+library(dlm)
+library(readr)
+library(tidyverse)
+library(smooth)
+```
+
+```{r data_loading}
+inflow <- read_table2("inflowtimeseries.txt", 
+    col_names = FALSE)
+inflow <- inflow%>%
+  select(X1,X2, X17)
+inflow <- inflow %>%
+  rename(
+    Month = X1,
+    Year = X2,
+    monthly.inflow = X17
+  )
+View(inflow)
+```
+
+Question 1:
+
+Arrange Data
+
+```{r split_data}
+
+inflow_2000 <- inflow%>%
+  filter(Year >= 2000 & Year < 2010)
+view(inflow_2000)
+inflow_include_2010 <- inflow%>%
+  filter(Year >= 2000 & Year <=2010)
+inflow_include_2010 <- ts(inflow_include_2010$monthly.inflow, frequency = 12)
+inflow_2000_ts <- ts(inflow_2000$monthly.inflow, frequency = 12)
+nobs <- nrow(inflow_2000)
+tot_nobs <- nrow(inflow_include_2010)
+```
+
+Question 2:
+
+Decompose and Adjust
+
+```{r decomp}
+ts_2000_decomp <- decompose(inflow_2000_ts)
+ts_2000_seasadj <-seasadj(ts_2000_decomp)
+ts_2000_seasadj <- ts(ts_2000_seasadj, frequency = 12)
+inflow_include_2010_decomp <- decompose((inflow_include_2010))
+inflow_include_2010_seasadj<- seasadj(inflow_include_2010_decomp)
+inflow_include_2010_seasadj <- ts(inflow_include_2010_seasadj, frequency =12)
+numobsdecomp <- nrow(inflow_include_2010_decomp$seasonal)
+
+```
+Question 3:
+
+Plot Original and Adjusted
+
+```{r plot_both}
+ts.plot(inflow_2000_ts, col = "green", xlab= "Years", ylab = "Inflow",main = "Deseasoned vs Original Data")
+lines(ts_2000_seasadj, col ="red")
+legend("bottomleft",col=c("green","red"),lty=c("solid","solid"),
+       legend=c("Original","Deseasoned"))
+
+```
+
+Question 4:
+
+```{r fir_new_auto_arima}
+auto_ts_seasadj <- auto.arima(ts_2000_seasadj)
+auto_ts_seasadj_for <- forecast(auto_ts_seasadj, h = 12)
+plot(inflow_include_2010_seasadj, col = "red", main = "ARIMA Forceast", ylab = " Inflow", xlab = "Years")
+  lines(auto_ts_seasadj_for$mean, col = "green")
+  legend("bottomleft",col=c("green","red"),lty=c("solid","solid"),
+       legend=c("Forecast","Fitted"))
+```
+
+The forecast appears to extrapolate on the peak from previous years and does not compley well to the seasonal components in the data series, as can be expected from a deseasoned model. 
+
+Question 5:
+
+To put the season back into the projections, we add the seasonal component from the decomposition back into each value. To verify this is correct the original series and adjusted projected series are plotted below. The series resemble one another, but while the ARIMA values tend to accurately project the low points, the tend to under estimate the high points.
+
+```{r add_season}
+loop_num = length(auto_ts_seasadj_for$fitted)
+for(i in 1:loop_num){
+  auto_ts_seasadj_for$fitted[i]= auto_ts_seasadj_for$fitted[i]+ ts_2000_decomp$seasonal[i]
+}
+mean_num = length(auto_ts_seasadj_for$mean)
+for(i in 1:12){
+  auto_ts_seasadj_for$mean[i]= auto_ts_seasadj_for$mean[i]+ ts_2000_decomp$seasonal[i]
+}
+acc_auto <- accuracy(auto_ts_seasadj_for,inflow_include_2010[(nobs-10):nobs])
+plot(auto_ts_seasadj_for$fitted, ylab= "Years", xlab = "Inflow", col = "green")+
+  lines(inflow_2000_ts, col = "red")
+  legend("bottomleft",col=c("green","red"),lty=c("solid","solid"),
+       legend=c("Original","Fitted"))
+auto_ts_seasadj_for <- forecast(auto_ts_seasadj, h = 12)
+```
+
+Question 6:
+
+Now, we will fit a SARIMA model to the original data
+
+```{r orig_auto}
+orig_auto_fit <- auto.arima(inflow_2000_ts)
+```
+
+```{r forecast_plot}
+orig_auto_fit_for <- forecast(orig_auto_fit, h =12)
+plot(inflow_include_2010, col = "red", xlab = "Years", ylab = "Inflow", main = "SARIMA Forecast")+
+  lines(orig_auto_fit_for$mean, col = "green") 
+acc_orig_auto <- accuracy(orig_auto_fit_for,inflow_include_2010[(nobs-10):nobs])
+legend("bottomleft",col=c("green","red"),lty=c("solid","solid"),
+       legend=c("ARIMA Forecast","Observed"))
+```
+
+The SARIMA forecast appears very accurate compared to the previous model. It follows the seasonal component of the data very closely, and at first glance provides accurate projections for the year of holdout data. 
+
+Question 8:
+
+```{r es_model}
+es_fit <- es(inflow_2000_ts, h = 12, silent = FALSE, holdout = FALSE)
+plot(es_fit)
+acc_es <- accuracy(es_fit$forecast, inflow_include_2010[(nobs-10):nobs])
+
+```
+
+This model is similarly effective in caputring the shape of the data and the seasonal trend of the years prior. The fitted values also look to be very accurate throughout the obsevred series. 
+
+Question 9:
+
+```{r state_space}
+ss_inflow=StructTS(inflow_2000_ts,type="BSM" ,fixed=c(1000000,1000000,9000000,NA))
+ss_inflow=forecast(ss_inflow,h=12)
+plot(ss_inflow)
+par(mfrow = c(1,2))
+acc_ss <- accuracy(ss_inflow$mean,inflow_include_2010[(nobs-10):nobs])
+```
+
+The BSM model, after tweaking the parameters and allowing for the highest seasonal variance, provides what appears to be an accurate forecast given the previous values and visual trend. The shape of the forecast bears much resemblance to the previous two.
+
+
+Question 10:
+
+```{r all_plot}
+plot(inflow_include_2010, type = "l", xlab = "Years", ylab = "Inflow", main = "Comparison of Forecasts")
+  lines(orig_auto_fit_for$mean, col = "green")
+  lines(auto_ts_seasadj_for$mean, col = "blue")
+  lines(ss_inflow$mean, col = "red")
+  lines(es_fit$forecast, col = "yellow")
+  legend("bottomleft",col=c("green","blue","red","yellow"),lty=c("solid","solid", "solid", "solid"),
+       legend=c("SARIMA","ARIMA"," BSM State Space","Exp. Smooth"))
+```
+  
+Question 11:
+
+The best model in terms of forecasting both high and low months is the BSM State Space Model. It's best overall and for the high and low seasons of inflow. It seems to almost trace the actual data values for the projected 12 months. The ARIMA model with the seasonality added back in preformed the worst and failed to account for the extreme seasonality in the dataset. The exponential smoothing model overestimatedthe highs andunderestimated the lows. The SARIMA model did largely the same, but to a lesser extent. 
+
+Question 12:
+
+```{r accuracy_projections}
+print("Auto Arima Deseasoned")
+acc_auto
+print("Exponential Smoothing")
+acc_es
+("Original Data Set SARIMA")
+acc_orig_auto
+print("BSM")
+acc_ss
+```
+
+For the ARIMA of the deseasoned set, we can see that the first ACF value is very high and approaching 1. This means that there islikely a lot of trend in the data which that model is not accounting for. It would be extremely unlikely for an ACF that is whitenoise to have a first lag value that high. This is likely because the ARIMA didn't account for season. Predictably, the RMSE was the highest for the BSM model, which showed the best preformance compared to the naive model and showed the second lowest MAPE. 
+

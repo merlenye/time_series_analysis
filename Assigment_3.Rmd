@@ -1,0 +1,303 @@
+---
+title: "Enviro 790.30 Assignment #3"
+author: "Merle Nye"
+date: "2/23/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_libraries, warning=FALSE, message=FALSE}
+library(forecast)
+library(dplyr)
+library(tseries)
+library(Kendall)
+library(stats)
+library(tidyverse)
+library(broom)
+library(knitr)
+
+```
+
+```{r load_data}
+data <- read.csv("RenewableEnergy.csv")
+```
+
+```{r select_frame}
+data <- data%>%
+  select(Total.Biomass.Energy.Production, Total.Renewable.Energy.Production, Hydroelectric.Power.Consumption)
+head(data)
+tsdata<-ts(data[1:ncol(data)], frequency = 12)
+head(tsdata)
+numobs = nrow(data)
+```
+
+Part A:
+
+```{r}
+t = 1:numobs
+Bio.lm<- lm(tsdata[t,1]~t)
+summary(Bio.lm)
+Renew.lm<- lm(tsdata[t,2]~t)
+summary(Renew.lm)
+Hydro.lm<- lm(tsdata[t,3]~t)
+summary(Hydro.lm)
+
+Bio_int<- Bio.lm$coefficients[1]
+Bio_slo<- Bio.lm$coefficients[2]
+Renew_int<- Renew.lm$coefficients[1]
+Renew_slo<- Renew.lm$coefficients[2]
+Hydro_int<- Hydro.lm$coefficients[1]
+Hydro_slo<- Hydro.lm$coefficients[2]
+```
+
+The coeffecients for all series are statistically significant, but none is particularly strong. For each month in bimass energy production, we can expect a .42 BTU increase in production and .68 for Total renewable Production. For hydroelectric consumtpion, we can expect an average drop of .07 BTU with each month further from the origin. The p value for all coefficients and intercept was 0.001.
+
+Part B:
+
+```{r}
+Bio_detrend=array(0,numobs)
+for(i in 1:numobs){
+  Bio_detrend[i]=tsdata[i,1]-(Bio_int+Bio_slo*i)
+}
+Renew_detrend=array(0,numobs)
+for(i in 1:numobs){
+  Renew_detrend[i]=tsdata[i,2]-(Renew_int+Renew_slo*i)
+}
+
+Hydro_detrend=array(0,numobs)
+for(i in 1:numobs){
+  Hydro_detrend[i]=tsdata[i,3]-(Hydro_int+Hydro_slo*i)
+}
+
+```
+
+
+```{r plot_Bio1}
+plot.ts(tsdata[t,1],type="l",ylim=c(-200,600), ylab="Trillion BTU")
+lines(t,Bio_detrend[t],col="red")
+title(main="Original series in black & Detrended series in red")
+```
+
+For the total biomass energy production plot, the general shape of the plot remains the same. The detrended series, as we shoudl expect, seems to have a horizontal trendline and thus grows further apart from the original data as can be expected by the positive coeffecient between time and production uncovered in part a.The seasonality still seems to be very prevelant in the detrended series. 
+
+```{r plot_Renew}
+plot.ts(tsdata[t,2],type="l",ylim=c(-200,1000), ylab="Trillion BTU")
+lines(t,Renew_detrend[t],col="red")
+title(main="Original series in black & Detrended series in red")
+```
+
+The detrended series here still seems to exhibit many seasonal behaviors. The intercept and final value for this series are much lower than the original.The larger coeffecient for this series, when compared to biomass, is increasingly apperant towards the end of the series. 
+
+```{r plot_Hydro}
+plot.ts(tsdata[t,3],type="l",ylim=c(-600,600),ylab="Trillion BTU")
+lines(t,Hydro_detrend[t],col="red")
+title(main="Original series in black & Detrended series in red")
+
+```
+
+The original and detrended series for hydroelectric consumption exhibit both similar behaviors and relatively similar values, which can be expected given the small coeffecient observed in part a. The distance between series in this plot is much less noticable than in the prior two, and diverges at a much slower rate.
+
+Part C:
+
+```{r acf_dcf_detrended}
+Bio_de_acf=Acf(Bio_detrend, lag.max=40, type="correlation", plot = FALSE)
+Renew_de_acf=Acf(Renew_detrend, lag.max=40, type="correlation", plot = FALSE)
+Hydro_de_acf=Acf(Hydro_detrend, lag.max=40, type="correlation", plot = FALSE)
+```
+
+```{r plot_bio_de}
+plot(Bio_de_acf, main = "Autocorrelation of Detrended Total Biomass Energy Production")
+```
+
+The ACF for the detrended series shows a similar slow decline in significance to the ACF of the original data, but differs notably in the visibility of its seasonality. The slow decline and increase between each 12 lags paints a clear picture of the repeated seasonal effect on the autocorrelation of the series. 
+
+```{r plot_renew_de}
+plot(Renew_de_acf, main = "Autocorrelation of Detrended Total Renewable Energy Production" )
+```
+
+The difference between the original data ACF plot and the detrended series is more subtle than the prior. The seasonality of the original plot is visible, but the detrended plot shows much more dramatic fluctuations between every 12th lag and a steeper decline in the ACF than the original plot.
+
+```{r plot hydro_de}
+plot(Hydro_de_acf, main = "Autocorrelation of Detrended Total Hydroelectric Power Consumption")
+```
+
+The autocorrelation charts for the detrended and original series here are much more similar than the previous two. Both seems to be nearly identical on first glance, but the original data has more lags that pass the line for significance, and most do so by a slightly larger margin than do the lags in the detrended series. 
+
+```{r get_de_pacf}
+Bio_de_pacf=Pacf(Bio_detrend, lag.max=40, plot = FALSE)
+Renew_de_pacf=Pacf(Renew_detrend, lag.max=40,  plot = FALSE)
+Hydro_de_pacf=Pacf(Hydro_detrend, lag.max=40,  plot = FALSE)
+```
+
+```{r bio_de_pa1}
+plot(Bio_de_pacf, main = "Partial Autocorrelation of Detrended Total Biomass Energy Production")
+```
+
+The PACF plots for the detrended and original series are much similar than the ACF plots. The original series has several more negative lags than the detrended series, but both exhibit significant spikes in the partial ACF values on every 12th lag, likely an effect of seasonality.
+
+```{r bio_de_pa2}
+plot(Renew_de_pacf, main = "Partial Autocorrelation of Detrended Total Renewable Energy Production" )
+```
+
+Much like the last plot, the orignal and detrended PACF plots for total renewable energy production vary minimally, with only several lags that differ between being signifcant and not. These happen toward the end of the series meaning the partial effects vary slightly more with more time.
+
+```{r hydro_de_pa3}
+plot(Hydro_de_pacf, main = "Partial Autocorrelation of Detrended Hydroelectric Power Consumption")
+```
+
+The PACF plot for hydroelectric appears not to have changed from the original series to the detrended one
+
+Part D:
+
+```{r detrend_dummies}
+Bio_detrend = ts(Bio_detrend, frequency = 12)
+Renew_detrend = ts(Renew_detrend, frequency =12)
+Hydro_detrend = ts(Hydro_detrend, frequency = 12)
+Bio_dummies =seasonaldummy(Bio_detrend)
+Renew_dummies=seasonaldummy(Renew_detrend)
+Hydro_dummies = seasonaldummy(Hydro_detrend)
+
+reg_Bio_dummies=lm(Bio_detrend~Bio_dummies,cbind(Bio_detrend,Bio_dummies))
+tidy(reg_Bio_dummies, conf.int = TRUE)%>%
+  kable(format="markdown", digits = 3)
+
+reg_Renew_dummies=lm(Renew_detrend~Renew_dummies,cbind(Renew_detrend,Renew_dummies))
+tidy(reg_Renew_dummies, conf.int = TRUE)%>%
+  kable(format="markdown", digits = 3)
+
+reg_Hydro_dummies=lm(Renew_detrend~Hydro_dummies,cbind(Hydro_detrend,Hydro_dummies))
+tidy(reg_Hydro_dummies, conf.int = TRUE)%>%
+  kable(format="markdown", digits = 3)
+
+Bio_dummies_int = reg_Bio_dummies$coefficients[1]
+Bio_dummies_co = reg_Bio_dummies$coefficients[2:12]
+Renew_dummies_int = reg_Renew_dummies$coefficients[1]
+Renew_dummies_co = reg_Renew_dummies$coefficients[2:12]
+Hydro_dummies_int = reg_Hydro_dummies$coefficients[1]
+Hydro_dummies_co = reg_Hydro_dummies$coefficients[2:12]
+
+```
+
+From the above tables, it appears that biomass production is least affected by the seasonality. The confidence intervals for all but three of the coeffecients of its season dummies include 0, and therefor, are not statistically significant. For total renewable production, 5 of the coefficients were statistically significant. Finally, Hydropower consumption appeared to be very influenced by seasonal variables and nearly all the coefficients for seasonal dummies were statistically significant. This is logical given the seasonal dependence of water avaliability. 
+
+Part E:
+
+```{r deseason}
+Bio_deseason=array(0,numobs)
+for(i in 1:numobs){
+  Bio_deseason[i]=Bio_detrend[i]-(Bio_dummies_int+Bio_dummies_co%*%Bio_dummies[i,])
+}
+
+Renew_deseason=array(0,numobs)
+for(i in 1:numobs){
+  Renew_deseason[i]=Renew_detrend[i]-(Renew_dummies_int+Renew_dummies_co%*%Renew_dummies[i,])
+}
+
+Hydro_deseason=array(0,numobs)
+for(i in 1:numobs){
+  Hydro_deseason[i]=Hydro_detrend[i]-(Hydro_dummies_int+Hydro_dummies_co%*%Hydro_dummies[i,])
+}
+
+```
+
+
+```{r plot_Bio_detrend}
+plot.ts(tsdata[t,1],type="l",ylim=c(-200,600), ylab="Trillion BTU")
+lines(t,Bio_deseason[t],col="red")
+title(main="Original series in black & Deseasoned series in red")
+```
+
+As expected given the results of the previous regression, the original series and deseasoned series vary little (apart from the already detrended components). However, removing the seasonal effect from the month of february removed the regular dips on that month from the original series. The increases and decreaes 
+```{r plot_Bio2}
+plot.ts(tsdata[t,2],type="l",ylim=c(-600,1000), ylab="Trillion BTU")
+lines(t,Renew_deseason[t],col="red")
+title(main="Original series in black & Deseasoned series in red")
+```
+
+This plot varies more from the original data than the previous. The seasonal spikes observed in the original data are significantly smoother in the deseasoned data and the rises and falls are much steadier over time. We see much less radical variation from month to month and year to year than we do in the original 
+
+```{r plot_Bio3}
+plot.ts(tsdata[t,1],type="l",ylim=c(-200,600), ylab="Trillion BTU")
+lines(t,Hydro_deseason[t],col="red")
+title(main="Original series in black & Deseasoned series in red")
+```
+
+As indicated by the significance of the coefficients, the difference between the original and deseasoned series is the most dramatic for hydroelectric consumption, which is logical given it is the most seasonal traditional energy source. We actually see larger variations in the deseasoned series from month to month in stark contrast with the previous two.
+
+Part F:
+
+```{r deseasoned ACF}
+Bio_des_acf=Acf(Bio_deseason, lag.max=40, type="correlation", plot = FALSE)
+Renew_des_acf=Acf(Renew_deseason, lag.max=40, type="correlation", plot = FALSE)
+Hydro_des_acf=Acf(Hydro_deseason, lag.max=40, type="correlation", plot = FALSE)
+
+plot(Bio_des_acf, main = "Autocorrelation of Deseasoned Total Biomass Energy Production")
+plot(Renew_de_acf, main = "Autocorrelation of Deseasoned Total Renewable Energy Production" )
+plot(Hydro_de_acf, main = "Autocorrelation of Deseasoned Total Hydroelectric Power Consumption")
+```
+
+The deseasoned ACF plot for biomass is much smoother than the ACF plot for the detrended version of the seies. The shape of the deseasoned biomass plot is actually closer to the original than the detrended was.
+
+The deseasoned ACF plot for total renewable prodcution is also very similar to the detrended version. The seasonality is much more defined than the original plot in that each 12 lags is more pronounced, but this is likely a result of its earlier detrending.
+
+The ACF for hydroelectric also remained largely unchanged and resembled the ACF from the original data.
+
+
+
+```{r deseasoned_pacf}
+Bio_des_pacf=Pacf(Bio_deseason, lag.max=40, plot = FALSE)
+Renew_des_pacf=Pacf(Renew_deseason, lag.max=40,  plot = FALSE)
+Hydro_des_pacf=Pacf(Hydro_deseason, lag.max=40,  plot = FALSE)
+
+plot(Bio_des_pacf, main = "Partial Autocorrelation of Deseasoned Total Biomass Energy Production")
+plot(Renew_des_pacf, main = "Partial Autocorrelation of Deseasoned Total Renewable Energy Production" )
+plot(Hydro_des_pacf, main = "Partial Autocorrelation of Deseasoned Hydroelectric Power Consumption")
+
+```
+
+The largest difference in the PACF plot for deseasoned biomass production compared to the original is the dropoff in significance of the autocorrelation of its lags. While is has a similar amount of significant lags, they are not nearly as strong as the original data. 
+
+A similar trend is visible in the PACF for the deseasoned renewable production data. On the whole, the significance of the most significant lags has dramatically decreased.
+
+The PACF for the deseasoned hydroelectric consumption data exhibits many more values showing positive PACF than the orignal data. However, the number of significant lags has decreased substantially. 
+Part G:
+
+```{r differencing_series}
+diff_bio <- diff(tsdata[,1],1)
+diff_renew <- diff(tsdata[,2],1)
+diff_hydro <- diff(tsdata[,3],1)
+plot.ts(diff_bio, ylab="Trillion BTU")
+title(main = "Total Biomass Production")
+plot.ts(diff_renew, ylab="Trillion BTU")
+title(main="Total Renewable Production")
+plot.ts(diff_hydro, ylab="Trillion BTU")
+title(main="Total Hydroelectric Consumption")
+```
+
+In the differenced data for biomass production, there still appears to be an event influencing months 20-30, but there is no discernable trend or seasonality generalizable to the whole plot.
+
+For total renewable production and hydroelectric consumption, it appears both time series have random errors and lack seasonal and trend components.
+
+Part H:
+
+```{r correlation_tests}
+t = 1:536
+SeasonalMannKendall(diff_bio)
+SeasonalMannKendall(diff_renew)
+SeasonalMannKendall(diff_hydro)
+```
+
+The null hypothesis in the Mann-Kenall Test is that the data is stationary. We can clearly see that none of trends (measured by tau) were statistically significant. This test supports the lack of trends in the time series observed.
+
+```{r cor_test}
+cor.test(t,diff_bio, meathod = "spearman")
+cor.test(t,diff_renew, meathod = "spearman")
+cor.test(t,diff_hydro, meathod = "spearman")
+```
+
+We can see from the Spearman's rank correlation coefficient that all these series lack a monotnic trend. All the correlations observed are near 0 and therefor lack a trend. In all these tests, the alternative hypothesis that true correlation is not equal to 0 can be rejected, as the p values are well above the acceptable 0.05.
